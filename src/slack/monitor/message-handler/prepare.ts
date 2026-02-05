@@ -39,6 +39,7 @@ import { resolveSlackAllowListMatch, resolveSlackUserAllowed } from "../allow-li
 import { resolveSlackEffectiveAllowFrom } from "../auth.js";
 import { resolveSlackChannelConfig } from "../channel-config.js";
 import { stripSlackMentionsForCommandDetection } from "../commands.js";
+import { fetchChannelContext } from "../channel-context.js";
 import { normalizeSlackChannelType, type SlackMonitorContext } from "../context.js";
 import { authorizeSlackDirectMessage } from "../dm-auth.js";
 import {
@@ -505,6 +506,28 @@ export async function prepareSlackMessage(params: {
     channelInfo,
     channelConfig,
   });
+
+  let assistantChannelContext: string | undefined;
+  const assistantConfig = account.config.assistant;
+  const assistantContextEnabled = assistantConfig?.enabled && (assistantConfig.channelContext ?? true);
+  if (assistantContextEnabled && threadTs) {
+    const threadContext2 = getThreadContext(message.channel, threadTs);
+    if (threadContext2?.channelId && threadContext2.channelId !== message.channel) {
+      const channelCtx = await fetchChannelContext({
+        channelId: threadContext2.channelId,
+        clientOpts: { client: ctx.app.client },
+        client: ctx.app.client,
+        messageLimit: assistantConfig?.channelContextMessageLimit,
+      });
+      if (channelCtx) {
+        assistantChannelContext = channelCtx.contextBlock;
+        logVerbose(
+          `slack assistant context: injected ${channelCtx.messageCount} messages from ${channelCtx.channelName ?? threadContext2.channelId}`,
+        );
+      }
+    }
+  }
+
 
   let threadStarterBody: string | undefined;
   let threadHistoryBody: string | undefined;
