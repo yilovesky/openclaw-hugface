@@ -53,6 +53,12 @@ export type GeminiFilePart = {
   fileData: { mimeType: string; fileUri: string };
 };
 export type GeminiPart = GeminiTextPart | GeminiInlinePart | GeminiFilePart;
+export type GeminiTextEmbeddingRequest = {
+  content: { parts: GeminiTextPart[] };
+  taskType: GeminiTaskType;
+  outputDimensionality?: number;
+  model?: string;
+};
 
 /** Convert a string or pre-built parts array into `GeminiPart[]`. */
 export function buildGeminiParts(input: string | GeminiPart[]): GeminiPart[] {
@@ -70,6 +76,26 @@ export function buildInlineDataPart(mimeType: string, base64Data: string): Gemin
 /** Convenience: build a file-data part for multimodal embeddings. */
 export function buildFileDataPart(mimeType: string, fileUri: string): GeminiFilePart {
   return { fileData: { mimeType, fileUri } };
+}
+
+/** Builds the text-only Gemini embedding request shape used across direct and batch APIs. */
+export function buildGeminiTextEmbeddingRequest(params: {
+  text: string;
+  taskType: GeminiTaskType;
+  outputDimensionality?: number;
+  modelPath?: string;
+}): GeminiTextEmbeddingRequest {
+  const request: GeminiTextEmbeddingRequest = {
+    content: { parts: [{ text: params.text }] },
+    taskType: params.taskType,
+  };
+  if (params.modelPath) {
+    request.model = params.modelPath;
+  }
+  if (params.outputDimensionality != null) {
+    request.outputDimensionality = params.outputDimensionality;
+  }
+  return request;
 }
 
 /**
@@ -186,13 +212,11 @@ export async function createGeminiEmbeddingProvider(
     if (!text.trim()) {
       return [];
     }
-    const body: Record<string, unknown> = {
-      content: { parts: [{ text }] },
+    const body = buildGeminiTextEmbeddingRequest({
+      text,
       taskType: options.taskType ?? "RETRIEVAL_QUERY",
-    };
-    if (isV2 && outputDimensionality != null) {
-      body.outputDimensionality = outputDimensionality;
-    }
+      outputDimensionality: isV2 ? outputDimensionality : undefined,
+    });
     const payload = await executeWithApiKeyRotation({
       provider: "google",
       apiKeys: client.apiKeys,
@@ -205,18 +229,15 @@ export async function createGeminiEmbeddingProvider(
     if (texts.length === 0) {
       return [];
     }
-    const requests = texts.map((text) => {
-      const req: Record<string, unknown> = {
-        model: client.modelPath,
-        content: { parts: [{ text }] },
+    const requests = texts.map((text) =>
+      buildGeminiTextEmbeddingRequest({
+        text,
+        modelPath: client.modelPath,
         taskType: options.taskType ?? "RETRIEVAL_DOCUMENT",
-      };
-      if (isV2 && outputDimensionality != null) {
-        req.outputDimensionality = outputDimensionality;
-      }
-      return req;
-    });
-    const batchBody: Record<string, unknown> = { requests };
+        outputDimensionality: isV2 ? outputDimensionality : undefined,
+      }),
+    );
+    const batchBody = { requests };
     const payload = await executeWithApiKeyRotation({
       provider: "google",
       apiKeys: client.apiKeys,

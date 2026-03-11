@@ -9,6 +9,7 @@ import {
 import { type VoyageBatchRequest, runVoyageEmbeddingBatches } from "./batch-voyage.js";
 import { enforceEmbeddingMaxInputTokens } from "./embedding-chunk-limits.js";
 import { estimateUtf8Bytes } from "./embedding-input-limits.js";
+import { buildGeminiTextEmbeddingRequest } from "./embeddings-gemini.js";
 import {
   chunkMarkdown,
   hashText,
@@ -482,9 +483,11 @@ export abstract class MemoryManagerEmbeddingOps extends MemoryManagerSyncOps {
       provider: "gemini",
       enabled: Boolean(gemini),
       buildRequest: (chunk) => ({
-        content: { parts: [{ text: chunk.text }] },
-        taskType: "RETRIEVAL_DOCUMENT",
-        outputDimensionality: this.gemini?.outputDimensionality,
+        request: buildGeminiTextEmbeddingRequest({
+          text: chunk.text,
+          taskType: "RETRIEVAL_DOCUMENT",
+          outputDimensionality: this.gemini?.outputDimensionality,
+        }),
       }),
       runBatch: async (runnerOptions) =>
         await runGeminiEmbeddingBatches({

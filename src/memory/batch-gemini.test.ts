@@ -75,9 +75,11 @@ describe("runGeminiEmbeddingBatches", () => {
       requests: [
         {
           custom_id: "req-1",
-          content: { parts: [{ text: "hello world" }] },
-          taskType: "RETRIEVAL_DOCUMENT",
-          outputDimensionality: 1536,
+          request: {
+            content: { parts: [{ text: "hello world" }] },
+            taskType: "RETRIEVAL_DOCUMENT",
+            outputDimensionality: 1536,
+          },
         },
       ],
       wait: true,

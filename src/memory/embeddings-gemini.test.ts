@@ -3,6 +3,7 @@ import * as authModule from "../agents/model-auth.js";
 import {
   buildFileDataPart,
   buildGeminiParts,
+  buildGeminiTextEmbeddingRequest,
   buildInlineDataPart,
   createGeminiEmbeddingProvider,
   DEFAULT_GEMINI_EMBEDDING_MODEL,
@@ -86,6 +87,24 @@ describe("buildFileDataPart", () => {
     const part = buildFileDataPart("application/pdf", "gs://bucket/file.pdf");
     expect(part).toEqual({
       fileData: { mimeType: "application/pdf", fileUri: "gs://bucket/file.pdf" },
+    });
+  });
+});
+
+describe("buildGeminiTextEmbeddingRequest", () => {
+  it("builds a text embedding request with optional model and dimensions", () => {
+    expect(
+      buildGeminiTextEmbeddingRequest({
+        text: "hello",
+        taskType: "RETRIEVAL_DOCUMENT",
+        modelPath: "models/gemini-embedding-2-preview",
+        outputDimensionality: 1536,
+      }),
+    ).toEqual({
+      model: "models/gemini-embedding-2-preview",
+      content: { parts: [{ text: "hello" }] },
+      taskType: "RETRIEVAL_DOCUMENT",
+      outputDimensionality: 1536,
     });
   });
 });
@@ -253,6 +272,28 @@ describe("gemini-embedding-2-preview provider", () => {
 
     const body = parseFetchBody(fetchMock);
     expect(body.outputDimensionality).toBe(768);
+  });
+
+  it("uses custom outputDimensionality for each embedBatch request", async () => {
+    const fetchMock = createGeminiBatchFetchMock(2);
+    vi.stubGlobal("fetch", fetchMock);
+    mockResolvedProviderKey();
+
+    const { provider } = await createGeminiEmbeddingProvider({
+      config: {} as never,
+      provider: "gemini",
+      model: "gemini-embedding-2-preview",
+      fallback: "none",
+      outputDimensionality: 768,
+    });
+
+    await provider.embedBatch(["text1", "text2"]);
+
+    const body = parseFetchBody(fetchMock);
+    expect(body.requests).toEqual([
+      expect.objectContaining({ outputDimensionality: 768 }),
+      expect.objectContaining({ outputDimensionality: 768 }),
+    ]);
   });
 
   it("throws for invalid outputDimensionality", async () => {
