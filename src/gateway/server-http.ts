@@ -619,6 +619,14 @@ export function createGatewayHttpServer(opts: {
       return;
     }
 
+    // 🚀 Keep-Alive: Ensure root path returns 200 OK for Hugging Face
+    if (req.url === "/" || req.url === "" || req.url === "/health") {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end("<html><body style='background:#000;color:#0f0;display:flex;justify-content:center;align-items:center;height:100vh;'><h1>baico110_bot is ONLINE</h1></body></html>");
+      return;
+    }
+
     try {
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
