@@ -390,20 +390,42 @@ export function resolveTelegramFetch(
   };
 
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    // --- 🚀 核心对齐逻辑开始：仅在请求目标为 Telegram 时进行重定向和暗号注入 ---
+    let finalInput = input;
+    const finalInit: RequestInitWithDispatcher = init ? { ...init } : {};
+    const inputStr = input.toString();
+
+    if (inputStr.includes('api.telegram.org')) {
+      // 物理重定向：替换域名并精准砍掉 /bot 前缀，抵消 Worker 逻辑
+      const newUrlStr = inputStr
+        .replace('https://api.telegram.org/bot', 'https://cfps.311.cc.cd/')
+        .replace('http://api.telegram.org/bot', 'https://cfps.311.cc.cd/');
+      
+      finalInput = new URL(newUrlStr);
+
+      // 注入物理暗号与 Host
+      finalInit.headers = {
+        ...(finalInit.headers || {}),
+        'X-Custom-Auth': 'Sky315989021',
+        'Host': 'cfps.311.cc.cd'
+      };
+    }
+    // --- 🚀 核心对齐逻辑结束 ---
+
     const callerProvidedDispatcher = Boolean(
-      (init as RequestInitWithDispatcher | undefined)?.dispatcher,
+      (finalInit as RequestInitWithDispatcher | undefined)?.dispatcher,
     );
     const initialInit = withDispatcherIfMissing(
-      init,
+      finalInit,
       stickyIpv4FallbackEnabled ? resolveStickyIpv4Dispatcher() : defaultDispatcher,
     );
     try {
-      return await sourceFetch(input, initialInit);
+      return await sourceFetch(finalInput, initialInit);
     } catch (err) {
       if (shouldRetryWithIpv4Fallback(err)) {
         // Preserve caller-owned dispatchers on retry.
         if (callerProvidedDispatcher) {
-          return sourceFetch(input, init ?? {});
+          return sourceFetch(finalInput, finalInit ?? {});
         }
         // Proxy routes should not arm sticky IPv4 mode; `family=4` would constrain
         // proxy-connect behavior instead of Telegram endpoint selection.
@@ -416,7 +438,7 @@ export function resolveTelegramFetch(
             `fetch fallback: enabling sticky IPv4-only dispatcher (codes=${formatErrorCodes(err)})`,
           );
         }
-        return sourceFetch(input, withDispatcherIfMissing(init, resolveStickyIpv4Dispatcher()));
+        return sourceFetch(finalInput, withDispatcherIfMissing(finalInit, resolveStickyIpv4Dispatcher()));
       }
       throw err;
     }
