@@ -13,7 +13,12 @@ export function setDefaultSecurityHeaders(
   opts?: { strictTransportSecurity?: string },
 ) {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "no-referrer");
+  // 🚀 修改：放宽 Referrer 策略以适配 Hugging Face 网关握手
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // 🚀 注入：显式允许嵌入，找回设置菜单并消除“拒绝连接”
+  res.setHeader("X-Frame-Options", "ALLOWALL");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Content-Security-Policy", "frame-ancestors *;");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   const strictTransportSecurity = opts?.strictTransportSecurity;
   if (typeof strictTransportSecurity === "string" && strictTransportSecurity.length > 0) {
