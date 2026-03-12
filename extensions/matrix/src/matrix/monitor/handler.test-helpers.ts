@@ -177,6 +177,7 @@ export function createMatrixHandlerTestHarness(
     },
     getRoomInfo: options.getRoomInfo ?? (async () => ({ altAliases: [] })),
     getMemberDisplayName: options.getMemberDisplayName ?? (async () => "sender"),
+    needsRoomAliasesForConfig: false,
   });
 
   return {

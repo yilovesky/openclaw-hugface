@@ -1,3 +1,4 @@
+import { isStrictDirectMembership, readJoinedMatrixMembers } from "../direct-room.js";
 import type { MatrixClient } from "../sdk.js";
 
 type DirectMessageCheck = {
@@ -61,11 +62,10 @@ export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTr
       return cached.members;
     }
     try {
-      const members = await client.getJoinedRoomMembers(roomId);
-      const normalized = members
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.trim())
-        .filter(Boolean);
+      const normalized = await readJoinedMatrixMembers(client, roomId);
+      if (!normalized) {
+        throw new Error("membership unavailable");
+      }
       rememberBounded(joinedMembersCache, roomId, { members: normalized, ts: now });
       return normalized;
     } catch (err) {
@@ -88,11 +88,11 @@ export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTr
 
       if (client.dms.isDm(roomId)) {
         const directViaAccountData = Boolean(
-          selfUserId &&
-          senderId?.trim() &&
-          joinedMembers?.length === 2 &&
-          joinedMembers.includes(selfUserId) &&
-          joinedMembers.includes(senderId.trim()),
+          isStrictDirectMembership({
+            selfUserId,
+            remoteUserId: senderId,
+            joinedMembers,
+          }),
         );
         if (directViaAccountData) {
           log(`matrix: dm detected via m.direct room=${roomId}`);
@@ -102,11 +102,11 @@ export function createDirectRoomTracker(client: MatrixClient, opts: DirectRoomTr
       }
 
       if (
-        selfUserId &&
-        senderId?.trim() &&
-        joinedMembers?.length === 2 &&
-        joinedMembers.includes(selfUserId) &&
-        joinedMembers.includes(senderId.trim())
+        isStrictDirectMembership({
+          selfUserId,
+          remoteUserId: senderId,
+          joinedMembers,
+        })
       ) {
         log(`matrix: dm detected via exact 2-member room room=${roomId}`);
         return true;

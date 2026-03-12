@@ -1,3 +1,4 @@
+import { isStrictDirectRoom } from "../direct-room.js";
 import type { MatrixClient } from "../sdk.js";
 import type { MatrixRawEvent } from "./types.js";
 import { EventType } from "./types.js";
@@ -161,26 +162,6 @@ function resolveSummaryRecency(summary: MatrixVerificationSummaryLike): number {
   return Number.isFinite(ts) ? ts : 0;
 }
 
-async function isStrictDirectVerificationRoom(params: {
-  client: MatrixClient;
-  roomId: string;
-  senderId: string;
-}): Promise<boolean> {
-  const selfUserId = trimMaybeString(await params.client.getUserId().catch(() => null));
-  if (!selfUserId) {
-    return false;
-  }
-  const joinedMembers = await params.client.getJoinedRoomMembers(params.roomId).catch(() => null);
-  if (!Array.isArray(joinedMembers) || joinedMembers.length !== 2) {
-    return false;
-  }
-  const normalizedMembers = joinedMembers
-    .filter((entry): entry is string => typeof entry === "string")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  return normalizedMembers.includes(selfUserId) && normalizedMembers.includes(params.senderId);
-}
-
 async function resolveVerificationSummaryForSignal(
   client: MatrixClient,
   params: {
@@ -212,10 +193,10 @@ async function resolveVerificationSummaryForSignal(
   // spoofed verification event in an unrelated room can leak the current SAS
   // prompt into that room.
   if (
-    !(await isStrictDirectVerificationRoom({
+    !(await isStrictDirectRoom({
       client,
       roomId: params.roomId,
-      senderId: params.senderId,
+      remoteUserId: params.senderId,
     }))
   ) {
     return null;
@@ -285,10 +266,10 @@ export function createMatrixVerificationEventRouter(params: {
       const flowId = signal.flowId;
       const sourceEventId = trimMaybeString(event?.event_id);
       const sourceFingerprint = sourceEventId ?? `${senderId}:${event.type}:${flowId ?? "none"}`;
-      const shouldRouteInRoom = await isStrictDirectVerificationRoom({
+      const shouldRouteInRoom = await isStrictDirectRoom({
         client: params.client,
         roomId,
-        senderId,
+        remoteUserId: senderId,
       });
       if (!shouldRouteInRoom) {
         params.logVerboseMessage(

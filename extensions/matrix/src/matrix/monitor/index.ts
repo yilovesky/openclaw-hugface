@@ -83,6 +83,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
   let allowFrom: string[] = (accountConfig.dm?.allowFrom ?? []).map(String);
   let groupAllowFrom: string[] = (accountConfig.groupAllowFrom ?? []).map(String);
   let roomsConfig = accountConfig.groups ?? accountConfig.rooms;
+  let needsRoomAliasesForConfig = false;
 
   ({ allowFrom, groupAllowFrom, roomsConfig } = await resolveMatrixMonitorConfig({
     cfg,
@@ -92,6 +93,9 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     roomsConfig,
     runtime,
   }));
+  needsRoomAliasesForConfig = Boolean(
+    roomsConfig && Object.keys(roomsConfig).some((key) => key.trim().startsWith("#")),
+  );
 
   cfg = {
     ...cfg,
@@ -193,6 +197,7 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
     directTracker,
     getRoomInfo,
     getMemberDisplayName,
+    needsRoomAliasesForConfig,
   });
 
   const threadBindingManager = await createMatrixThreadBindingManager({

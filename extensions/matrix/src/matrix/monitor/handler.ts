@@ -79,6 +79,7 @@ export type MatrixMonitorHandlerParams = {
     opts?: { includeAliases?: boolean },
   ) => Promise<{ name?: string; canonicalAlias?: string; altAliases: string[] }>;
   getMemberDisplayName: (roomId: string, userId: string) => Promise<string>;
+  needsRoomAliasesForConfig: boolean;
 };
 
 function resolveMatrixMentionPrecheckText(params: {
@@ -126,6 +127,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
     directTracker,
     getRoomInfo,
     getMemberDisplayName,
+    needsRoomAliasesForConfig,
   } = params;
   let cachedStoreAllowFrom: {
     value: string[];
@@ -263,7 +265,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       }
 
       const roomInfoForConfig =
-        isRoom && roomsConfig && Object.keys(roomsConfig).some((key) => key.trim().startsWith("#"))
+        isRoom && needsRoomAliasesForConfig
           ? await getRoomInfo(roomId, { includeAliases: true })
           : undefined;
       const roomAliasesForConfig = roomInfoForConfig

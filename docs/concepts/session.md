@@ -308,3 +308,5 @@ Each session entry records where it came from (best-effort) in `origin`:
   `GroupSubject`, `GroupChannel`, `GroupSpace`, and `SenderName` in the inbound
   context and calling `recordSessionMetaFromInbound` (or passing the same context
   to `updateLastRoute`).
+  `GroupChannel` should carry the stable provider-side channel identity when one
+  exists. For example, Matrix now uses the room ID instead of room-declared aliases.

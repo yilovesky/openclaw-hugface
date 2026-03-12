@@ -1,3 +1,4 @@
+import { isStrictDirectRoom } from "../direct-room.js";
 import type { MatrixClient } from "../sdk.js";
 import { isMatrixQualifiedUserId, normalizeMatrixResolvableTarget } from "../target-ids.js";
 import { EventType, type MatrixDirectAccountData } from "./types.js";
@@ -43,26 +44,6 @@ function setDirectRoomCached(client: MatrixClient, key: string, value: string): 
   }
 }
 
-async function isStrictDirectRoom(
-  client: MatrixClient,
-  roomId: string,
-  remoteUserId: string,
-  selfUserId: string | null,
-): Promise<boolean> {
-  if (!selfUserId) {
-    return false;
-  }
-  let members: string[];
-  try {
-    members = await client.getJoinedRoomMembers(roomId);
-  } catch {
-    return false;
-  }
-  return (
-    members.length === 2 && members.includes(remoteUserId.trim()) && members.includes(selfUserId)
-  );
-}
-
 async function persistDirectRoom(
   client: MatrixClient,
   userId: string,
@@ -101,7 +82,10 @@ async function resolveDirectRoomId(client: MatrixClient, userId: string): Promis
 
   const directRoomCache = resolveDirectRoomCache(client);
   const cached = directRoomCache.get(trimmed);
-  if (cached && (await isStrictDirectRoom(client, cached, trimmed, selfUserId))) {
+  if (
+    cached &&
+    (await isStrictDirectRoom({ client, roomId: cached, remoteUserId: trimmed, selfUserId }))
+  ) {
     return cached;
   }
   if (cached) {
@@ -116,7 +100,7 @@ async function resolveDirectRoomId(client: MatrixClient, userId: string): Promis
     >;
     const list = Array.isArray(directContent?.[trimmed]) ? directContent[trimmed] : [];
     for (const roomId of list) {
-      if (await isStrictDirectRoom(client, roomId, trimmed, selfUserId)) {
+      if (await isStrictDirectRoom({ client, roomId, remoteUserId: trimmed, selfUserId })) {
         setDirectRoomCached(client, trimmed, roomId);
         return roomId;
       }
@@ -130,7 +114,7 @@ async function resolveDirectRoomId(client: MatrixClient, userId: string): Promis
   try {
     const rooms = await client.getJoinedRooms();
     for (const roomId of rooms) {
-      if (await isStrictDirectRoom(client, roomId, trimmed, selfUserId)) {
+      if (await isStrictDirectRoom({ client, roomId, remoteUserId: trimmed, selfUserId })) {
         setDirectRoomCached(client, trimmed, roomId);
         await persistDirectRoom(client, trimmed, roomId);
         return roomId;
