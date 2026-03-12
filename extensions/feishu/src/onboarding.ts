@@ -370,6 +370,24 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
           },
         };
       }
+      const currentEncryptKey = (next.channels?.feishu as FeishuConfig | undefined)?.encryptKey;
+      const encryptKey = String(
+        await prompter.text({
+          message: "Enter Feishu encrypt key",
+          initialValue: currentEncryptKey ?? "",
+          validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
+        }),
+      ).trim();
+      next = {
+        ...next,
+        channels: {
+          ...next.channels,
+          feishu: {
+            ...next.channels?.feishu,
+            encryptKey,
+          },
+        },
+      };
       const currentWebhookPath = (next.channels?.feishu as FeishuConfig | undefined)?.webhookPath;
       const webhookPath = String(
         await prompter.text({
