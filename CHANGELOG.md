@@ -34,6 +34,7 @@ Docs: https://docs.openclaw.ai
 - Doctor/gateway service audit: canonicalize service entrypoint paths before comparing them so symlink-vs-realpath installs no longer trigger false "entrypoint does not match the current install" repair prompts. (#43882) Thanks @ngutman.
 - Doctor/gateway service audit: earlier groundwork for this fix landed in the superseded #28338 branch. Thanks @realriphub.
 - Telegram/model picker: make inline model button selections persist the chosen session model correctly, clear overrides when selecting the configured default, and include effective fallback models in `/models` button validation. (#40105) Thanks @avirweb.
+- Plugins/cache invalidation: include env-resolved plugin load paths in shared plugin cache inputs so same-process `HOME` changes no longer reuse stale plugin registries for `~/...` load paths. (#44046) thanks @gumadeiras.
 
 ## 2026.3.11
 
