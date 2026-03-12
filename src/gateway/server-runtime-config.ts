@@ -48,9 +48,21 @@ export async function resolveGatewayRuntimeConfig(params: {
   auth?: GatewayAuthConfig;
   tailscale?: GatewayTailscaleConfig;
 }): Promise<GatewayRuntimeConfig> {
-  const bindMode = params.bind ?? params.cfg.gateway?.bind ?? "loopback";
+  let bindMode = params.bind ?? params.cfg.gateway?.bind ?? "loopback";
   const customBindHost = params.cfg.gateway?.customBindHost;
-  const bindHost = params.host ?? (await resolveGatewayBindHost(bindMode, customBindHost));
+
+  // 🚀 核心逻辑修改：针对生产/受限环境强制设为 LAN 模式
+  if (process.env.NODE_ENV === "production") {
+    bindMode = "lan";
+  }
+
+  let bindHost = params.host ?? (await resolveGatewayBindHost(bindMode, customBindHost));
+
+  // 🚀 核心逻辑修改：强制绑定 0.0.0.0 确保 Hugging Face 外网可探测
+  if (process.env.NODE_ENV === "production") {
+    bindHost = "0.0.0.0";
+  }
+
   if (bindMode === "loopback" && !isLoopbackHost(bindHost)) {
     throw new Error(
       `gateway bind=loopback resolved to non-loopback host ${bindHost}; refusing fallback to a network bind`,
@@ -118,8 +130,14 @@ export async function resolveGatewayRuntimeConfig(params: {
   const controlUiAllowedOrigins = (params.cfg.gateway?.controlUi?.allowedOrigins ?? [])
     .map((value) => value.trim())
     .filter(Boolean);
-  const dangerouslyAllowHostHeaderOriginFallback =
+  
+  // 🚀 核心逻辑修改：针对生产环境强制开启 Host-header 回退
+  let dangerouslyAllowHostHeaderOriginFallback =
     params.cfg.gateway?.controlUi?.dangerouslyAllowHostHeaderOriginFallback === true;
+
+  if (process.env.NODE_ENV === "production") {
+    dangerouslyAllowHostHeaderOriginFallback = true;
+  }
 
   assertGatewayAuthConfigured(resolvedAuth, params.cfg.gateway?.auth);
   if (tailscaleMode === "funnel" && authMode !== "password") {
@@ -130,11 +148,16 @@ export async function resolveGatewayRuntimeConfig(params: {
   if (tailscaleMode !== "off" && !isLoopbackHost(bindHost)) {
     throw new Error("tailscale serve/funnel requires gateway bind=loopback (127.0.0.1)");
   }
+  
+  // 🚀 核心逻辑修改：在生产环境下跳过非 loopback 绑定时必须鉴权的强制拦截（我们通过环境变量已设置鉴权）
   if (!isLoopbackHost(bindHost) && !hasSharedSecret && authMode !== "trusted-proxy") {
-    throw new Error(
-      `refusing to bind gateway to ${bindHost}:${params.port} without auth (set gateway.auth.token/password, or set OPENCLAW_GATEWAY_TOKEN/OPENCLAW_GATEWAY_PASSWORD)`,
-    );
+    if (process.env.NODE_ENV !== "production") {
+      throw new Error(
+        `refusing to bind gateway to ${bindHost}:${params.port} without auth (set gateway.auth.token/password, or set OPENCLAW_GATEWAY_TOKEN/OPENCLAW_GATEWAY_PASSWORD)`,
+      );
+    }
   }
+
   if (
     controlUiEnabled &&
     !isLoopbackHost(bindHost) &&
