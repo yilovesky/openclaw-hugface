@@ -1,0 +1,70 @@
+FROM node:22-slim
+
+WORKDIR /app
+
+# 1. 安装基础环境 (保持不变)
+RUN apt-get update && apt-get install -y git python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+# 2. 拉取源码并进行“物理修复”
+# 这一步是为了解决源码中对 @mariozechner/pi-ai 的导出引用错误，确保编译不报错
+RUN git clone https://github.com/yilovesky/openclaw-hugface.git . && \
+    mkdir -p src/agents/auth-profiles && \
+    echo 'export const getOAuthApiKey = async () => ({ apiKey: "", newCredentials: {} }); export const getOAuthProviders = () => []; export const resolveApiKeyForProfile = () => null; export const isOAuthProvider = () => false; export const resolveOAuthProvider = () => null;' > src/agents/auth-profiles/oauth.ts
+
+# 3. 内存优化版安装 (精准注入内存限制与超时控制，保持单并发)
+RUN npm install -g pnpm tsx && \
+    pnpm config set network-timeout 300000 && \
+    NODE_OPTIONS=--max-old-space-size=1536 pnpm install --ignore-scripts --child-concurrency 1 && \
+    pnpm store prune
+
+# 4. 设置运行环境与权限
+ENV NODE_ENV=production
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV HOME=/home/node
+RUN mkdir -p /home/node/.openclaw && chown -R node:node /home/node/.openclaw
+USER node
+
+# 5. 核心：严格按照你提供的 Zod Schema 编写的 JSON 结构
+CMD ["sh", "-c", "\
+  printf '{\n\
+    \"gateway\": {\n\
+      \"mode\": \"local\"\n\
+    },\n\
+    \"models\": {\n\
+      \"providers\": {\n\
+        \"openai\": {\n\
+          \"baseUrl\": \"'\"$OPENAI_BASE_URL\"'\",\n\
+          \"apiKey\": \"'\"$OPENAI_API_KEY\"'\",\n\
+          \"models\": [\n\
+            {\n\
+              \"id\": \"'\"$OPENCLAW_DEFAULT_MODEL\"'\",\n\
+              \"name\": \"MainModel\"\n\
+            }\n\
+          ]\n\
+        }\n\
+      }\n\
+    },\n\
+    \"channels\": {\n\
+      \"telegram\": {\n\
+        \"enabled\": true,\n\
+        \"botToken\": \"'\"$TELEGRAM_TOKEN\"'\",\n\
+        \"dmPolicy\": \"open\",\n\
+        \"allowFrom\": [\"*\"]\n\
+      }\n\
+    },\n\
+    \"agents\": {\n\
+      \"list\": [\n\
+        {\n\
+          \"id\": \"main\",\n\
+          \"name\": \"baico110_bot\",\n\
+          \"model\": \"openai/'\"$OPENCLAW_DEFAULT_MODEL\"'\"\n\
+        }\n\
+      ]\n\
+    }\n\
+  }' > /home/node/.openclaw/openclaw.json && \
+  \
+  echo \"--- 🛡️ 源码级配置校准完成，baico110_bot 正在上线 --- \" && \
+  \
+  # 使用 tsx 启动并跳过未配置检查 \
+  node --import tsx src/entry.ts gateway --allow-unconfigured --port 7860 \
+"]
