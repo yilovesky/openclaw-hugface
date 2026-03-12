@@ -622,11 +622,8 @@ export function createGatewayHttpServer(opts: {
     // 🚀 Keep-Alive: Ensure root path returns 200 OK for Hugging Face
     if (req.url === "/" || req.url === "" || req.url === "/health") {
       res.statusCode = 200;
+      // 底层 setDefaultSecurityHeaders 已注入安全头，此处保持极简响应以确保连接成功
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      // 🚀 核心注入：添加安全头，允许被 Hugging Face 嵌入并找回菜单选项
-      res.setHeader("X-Frame-Options", "ALLOWALL");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Content-Security-Policy", "frame-ancestors *");
       res.end("<html><body style='background:#000;color:#0f0;display:flex;justify-content:center;align-items:center;height:100vh;'><h1>baico110_bot is ONLINE</h1></body></html>");
       return;
     }
