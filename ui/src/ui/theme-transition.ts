@@ -9,6 +9,8 @@ export type ThemeTransitionContext = {
 export type ThemeTransitionOptions = {
   nextTheme: ResolvedTheme;
   applyTheme: () => void;
+  // Retained so callers from stacked slices can keep passing pointer metadata
+  // while theme switching remains an immediate, non-animated update here.
   context?: ThemeTransitionContext;
   currentTheme?: ResolvedTheme | null;
 };
